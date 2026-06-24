@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCP:SL Тренажер</title>
+    <link rel="stylesheet" href="css/app.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; background: #020617; font-family: 'Inter', sans-serif; overflow: hidden; }
+        
+        .main-content {
+            overflow: hidden; /* Canvas will handle pan/zoom */
+            cursor: grab;
+        }
+        .main-content:active {
+            cursor: grabbing;
+        }
+        #customTooltip {
+            position: fixed;
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            z-index: 1000;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            display: none;
+            white-space: pre-line;
+        }
+
+        /* Menu Styles */
+        #mainMenu {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: opacity 0.3s ease;
+        }
+        .menu-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 3rem;
+            text-align: center;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 40px rgba(96, 165, 250, 0.3);
+        }
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .menu-btn {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #f8fafc;
+            padding: 1.25rem 2rem;
+            border-radius: 12px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+        .menu-btn:hover:not(.disabled) {
+            background: rgba(51, 65, 85, 0.8);
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+        }
+        .menu-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        /* Zone selector styles */
+        .zone-btn {
+            flex: 1;
+            padding: 0.75rem 0;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #f8fafc;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .zone-btn:hover { background: rgba(51, 65, 85, 0.8); }
+        .zone-btn.active#btn_zone_light { background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; color: #f59e0b; }
+        .zone-btn.active#btn_zone_heavy { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444; }
+        .zone-btn.active#btn_zone_entrance { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; }
+
+        .template-btn {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #f8fafc;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+        }
+        .template-btn:hover {
+            background: rgba(51, 65, 85, 0.8);
+            border-color: #3b82f6;
+        }
+        .template-btn.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="debugLog" style="position: fixed; top: 0; left: 0; background: red; color: white; z-index: 9999; padding: 10px; font-family: monospace; display: none;"></div>
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            var log = document.getElementById('debugLog');
+            log.style.display = 'block';
+            log.innerHTML += msg + ' at ' + lineNo + '<br>';
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            var log = document.getElementById('debugLog');
+            log.style.display = 'block';
+            log.innerHTML += 'Promise: ' + event.reason + '<br>';
+        });
+    </script>
+    <!-- Main Menu Overlay -->
+    <div id="mainMenu">
+        <h1 class="menu-title">Тренажер<br>Ориентирования SCP:SL</h1>
+        <div class="header">
+            <button class="primary-btn" onclick="window.openMainMenu()">На главную</button>
+        </div>
+        <div class="menu-buttons">
+            <button class="menu-btn" onclick="openLayouts()">Шаблоны зон</button>
+            <button class="menu-btn disabled" disabled>Туман войны (Скоро)</button>
+            <button class="menu-btn disabled" disabled>Угадай комнату (Скоро)</button>
+            <button class="menu-btn" onclick="openSettings()">Настройки</button>
+        </div>
+    </div>
+
+    <!-- Layouts UI -->
+    <div id="layoutsApp" class="map-generator-container hidden">
+        <div class="sidebar glass-panel" style="display: flex; flex-direction: column;">
+            <h1 class="title">Шаблоны зон</h1>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.4;">
+                Изучайте макро-структуру (лейауты) каждой зоны, чтобы понимать принципы генерации и безошибочно находить нужные комнаты в реальной игре.
+            </p>
+            
+            
+
+            <!-- Settings moved to settingsView -->
+
+<div class="control-group" style="margin-bottom: 1.5rem;">
+                <label style="margin-bottom: 0.5rem; display: block; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Зона</label>
+                <div style="display:flex; gap: 0.5rem;">
+                    <button class="zone-btn active" onclick="selectZone('light')" id="btn_zone_light">LCZ</button>
+                    <button class="zone-btn" onclick="selectZone('heavy')" id="btn_zone_heavy">HCZ</button>
+                    <button class="zone-btn" onclick="selectZone('entrance')" id="btn_zone_entrance">EZ</button>
+                </div>
+            </div>
+
+            <div class="control-group" style="flex-grow: 1;">
+                <label style="margin-bottom: 0.5rem; display: block; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Доступные шаблоны</label>
+                <div id="templateButtons" style="display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto;">
+                    <!-- Buttons generated dynamically via JS -->
+                </div>
+            </div>
+
+            <button class="secondary-btn" onclick="openSettings()" style="margin-top: 1rem; width: 100%;">Настройки</button>
+            <button class="secondary-btn" onclick="openMainMenu()" style="margin-top: 0.5rem; width: 100%;">Вернуться в меню</button>
+        </div>
+
+        <div class="main-content" id="mapContainer">
+            <canvas id="mapCanvas"></canvas>
+            <div id="customTooltip"></div>
+        </div>
+        
+    </div>
+
+    <!-- Settings UI -->
+    <div id="settingsView" class="hidden" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div class="menu-buttons" style="background: rgba(30, 41, 59, 0.95); padding: 2rem; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.2); width: 50%; max-width: 600px; height: 80%; max-height: 800px; overflow-y: auto; display: block;">
+            
+            <h1 class="menu-title" style="margin-bottom: 1.5rem; font-size: 1.8rem;">Настройки</h1>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <label style="color: white; font-weight: 600;">Оформление:</label>
+                <select id="designModeSelect" class="primary-btn" style="padding: 0.5rem; font-size: 0.9rem;" onchange="if(typeof drawCanvas === 'function') drawCanvas();">
+                    <option value="game" selected>Игровое (из 079)</option>
+                    <option value="basic">Базовое (схема)</option>
+                </select>
+            </div>
+
+            <label style="color: white; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 1rem; justify-content: space-between;">
+                <span style="font-weight: 600;">Показывать уникальные комнаты</span>
+                <input type="checkbox" id="showSpecialRoomsCheck" style="transform: scale(1.5);" onchange="if(typeof drawCanvas === 'function') drawCanvas();" />
+            </label>
+            
+            <label style="color: white; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 1.5rem; justify-content: space-between;">
+                <span style="font-weight: 600;">Скрыть текст на карте</span>
+                <input type="checkbox" id="hideTextCheck" style="transform: scale(1.5);" onchange="if(typeof drawCanvas === 'function') drawCanvas();" />
+            </label>
+
+            <hr style="border: 0; border-top: 1px solid rgba(148,163,184,0.2); margin-bottom: 1.5rem;" />
+
+            <h2 style="color: white; font-size: 1.1rem; margin-bottom: 1rem;">Имена шаблонов</h2>
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
+                <label style="color: white; font-weight: 600;">Легкая Зона (LCZ)</label>
+                <select id="lczNamingSelect" class="primary-btn" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">
+                    <option value="game">Как в игре</option>
+                    <option value="community">Комьюнити</option>
+                </select>
+                
+                <label style="color: white; font-weight: 600;">Тяжелая Зона (HCZ)</label>
+                <select id="hczNamingSelect" class="primary-btn" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">
+                    <option value="game">Как в игре</option>
+                    <option value="community">Комьюнити</option>
+                </select>
+                
+                <label style="color: white; font-weight: 600;">Офисная Зона (EZ)</label>
+                <select id="ezNamingSelect" class="primary-btn" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">
+                    <option value="game">Как в игре</option>
+                    <option value="community">Комьюнити</option>
+                </select>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid rgba(148,163,184,0.2); margin-bottom: 1.5rem;" />
+
+            <h2 style="color: white; font-size: 1.1rem; margin-bottom: 1rem;">Цвета зон</h2>
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
+                <label style="color: white; font-weight: 600;">Легкая Зона (LCZ)</label>
+                <input type="color" id="lczColorPicker" value="#f59e0b" style="cursor: pointer; background: transparent; border: none;">
+                
+                <label style="color: white; font-weight: 600;">Тяжелая Зона (HCZ)</label>
+                <input type="color" id="hczColorPicker" value="#ef4444" style="cursor: pointer; background: transparent; border: none;">
+                
+                <label style="color: white; font-weight: 600;">Офисная Зона (EZ)</label>
+                <input type="color" id="ezColorPicker" value="#10b981" style="cursor: pointer; background: transparent; border: none;">
+                
+                <label style="color: white; font-weight: 600;">Цвет Текста</label>
+                <input type="color" id="textColorPicker" value="#f8fafc" style="cursor: pointer; background: transparent; border: none;">
+            </div>
+
+            <button class="secondary-btn" onclick="resetSettings()" style="width: 100%; border-color: #ef4444; color: #ef4444; margin-bottom: 1rem;">Сброс настроек</button>
+            <button class="primary-btn" onclick="closeSettings()" style="width: 100%;">Назад</button>
+        </div>
+    </div>
+
+    <script src="js/app.js?v=28"></script>
+</body>
+</html>
