@@ -30,7 +30,7 @@ function getChanceWeight(coords, candidate, spawned) {
     let weight = candidate.ChanceMultiplier;
 
     for (let i = 0; i < spawned.length; i++) {
-        if (spawned[i].chosenCandidate.name === candidate.Name) {
+        if (spawned[i].chosenCandidate._ref === candidate) {
             let c = spawned[i].interpretation.coords;
             if ((c.x === up.x && c.y === up.y) ||
                 (c.x === down.x && c.y === down.y) ||
@@ -50,7 +50,7 @@ function processInterpreted(interpretation, compatibleRooms, spawned, rng) {
 
     for (let i = 0; i < compatibleRooms.length; i++) {
         let room = compatibleRooms[i];
-        let spawnedCount = spawned.filter(s => s.chosenCandidate.name === room.Name).length;
+        let spawnedCount = spawned.filter(s => s.chosenCandidate._ref === room).length;
         let isSpecificMatch = !hasSpecificRooms || interpretation.specificRooms.includes(room.Name);
 
         if (hasSpecificRooms === room.SpecialRoom &&
@@ -84,11 +84,17 @@ function processInterpreted(interpretation, compatibleRooms, spawned, rng) {
             return;
         }
     }
+    // Fallback: floating point edge case — place last valid candidate
+    spawned.push({
+        interpretation: interpretation,
+        chosenCandidate: roomToCandidate(candidates[candidates.length - 1])
+    });
 }
 
 // Convert PascalCase room object → camelCase for processMapData compatibility
 function roomToCandidate(room) {
     return {
+        _ref: room,
         name: room.Name,
         shape: room.Shape,
         specialRoom: room.SpecialRoom,
@@ -163,6 +169,7 @@ function generateZone(zoneName, genData, glyphs, seed, forcedAtlasName) {
     }
 
     return spawned;
+
 }
 
 window.generateFacilityMap = async function(zone, template, seed) {
