@@ -223,7 +223,7 @@ function preloadImages() {
         img.onload = () => {
             if (typeof currentMapData !== 'undefined' && currentMapData) drawCanvas();
         };
-        img.src = '/img/rooms/' + TEXTURE_MAPPING[key];
+        img.src = 'img/rooms/' + TEXTURE_MAPPING[key];
         loadedImages[key] = img;
     }
 }
